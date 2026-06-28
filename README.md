@@ -14,7 +14,7 @@ Detecta comportamientos sospechosos usando reglas deterministas + **Isolation Fo
 | Python | 3.11+ |
 | Docker + Docker Compose | 24+ |
 | Postman | cualquier versión reciente |
-
+ 
 ---
 
 ## Opción A — Arrancar con Docker Compose (recomendado)
