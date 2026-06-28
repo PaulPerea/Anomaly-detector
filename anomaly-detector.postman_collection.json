@@ -1,0 +1,259 @@
+{
+  "info": {
+    "name": "Anomaly Detector — Test Suite",
+    "_postman_id": "anomaly-detector-v1",
+    "description": "Colección completa para probar el sistema de detección de accesos anómalos.\n\nVariables requeridas:\n- baseUrl: http://localhost:8080\n- aiUrl:   http://localhost:8081\n\nFlujo recomendado:\n1. Auth → Login Admin\n2. Sensitive Data (con token admin)\n3. Simular Ataque (ejecutar varias veces seguidas)\n4. Revisar Alerts",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "aiUrl",   "value": "http://localhost:8081" },
+    { "key": "adminToken", "value": "" },
+    { "key": "userToken",  "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login Admin",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "const json = pm.response.json();",
+                "pm.collectionVariables.set('adminToken', json.token);",
+                "pm.test('Login exitoso', () => pm.response.to.have.status(200));",
+                "pm.test('Token recibido', () => pm.expect(json.token).to.be.a('string'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] }
+          }
+        },
+        {
+          "name": "Login User (juan_perez)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "const json = pm.response.json();",
+                "pm.collectionVariables.set('userToken', json.token);",
+                "pm.test('Login user OK', () => pm.response.to.have.status(200));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"juan_perez\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] }
+          }
+        },
+        {
+          "name": "Login Fallido (genera alerta)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"juan_perez\",\n  \"password\": \"wrongpassword\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] }
+          }
+        },
+        {
+          "name": "Register Nuevo Usuario",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"nuevo_usuario\",\n  \"password\": \"Password123!\",\n  \"email\": \"nuevo@test.com\",\n  \"role\": \"USER\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth","register"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Sensitive Data",
+      "item": [
+        {
+          "name": "GET mis datos (USER)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": { "raw": "{{baseUrl}}/sensitive-data", "host": ["{{baseUrl}}"], "path": ["sensitive-data"] }
+          }
+        },
+        {
+          "name": "GET todos los datos (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/sensitive-data", "host": ["{{baseUrl}}"], "path": ["sensitive-data"] }
+          }
+        },
+        {
+          "name": "GET datos por usuario (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/sensitive-data/user/2", "host": ["{{baseUrl}}"], "path": ["sensitive-data","user","2"] }
+          }
+        },
+        {
+          "name": "GET datos sin token → 401",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["pm.test('Sin token = 401', () => pm.response.to.have.status(401));"]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/sensitive-data", "host": ["{{baseUrl}}"], "path": ["sensitive-data"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Simular Ataque (ejecutar 20+ veces)",
+      "item": [
+        {
+          "name": "⚠️ Consulta Repetida — genera alerta",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Request procesado', () => pm.response.to.have.status(200));",
+                "console.log('Ejecuta este request 20+ veces seguidas para disparar alerta de HIGH_RISK');"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": { "raw": "{{baseUrl}}/sensitive-data", "host": ["{{baseUrl}}"], "path": ["sensitive-data"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Access Log (ADMIN)",
+      "item": [
+        {
+          "name": "GET todos los logs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/access-log", "host": ["{{baseUrl}}"], "path": ["access-log"] }
+          }
+        },
+        {
+          "name": "GET solo high-risk",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/access-log/high-risk", "host": ["{{baseUrl}}"], "path": ["access-log","high-risk"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Alerts (ADMIN)",
+      "item": [
+        {
+          "name": "GET todas las alertas",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/alerts", "host": ["{{baseUrl}}"], "path": ["alerts"] }
+          }
+        },
+        {
+          "name": "GET alertas pendientes",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/alerts?pending=true", "host": ["{{baseUrl}}"], "path": ["alerts"], "query": [{ "key": "pending", "value": "true" }] }
+          }
+        },
+        {
+          "name": "Acknowledge alerta #1",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/alerts/1/acknowledge", "host": ["{{baseUrl}}"], "path": ["alerts","1","acknowledge"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AI Service (Directo)",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{aiUrl}}/health", "host": ["{{aiUrl}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Analizar acceso NORMAL",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"2\",\n  \"ipAddress\": \"192.168.1.10\",\n  \"resource\": \"/sensitive-data\",\n  \"queryCount\": 3,\n  \"accessedAt\": \"2024-06-15T10:30:00\",\n  \"failedAttemptsLast10Min\": 0,\n  \"isOffHours\": false\n}"
+            },
+            "url": { "raw": "{{aiUrl}}/ai/analyze", "host": ["{{aiUrl}}"], "path": ["ai","analyze"] }
+          }
+        },
+        {
+          "name": "Analizar acceso SUSPICIOUS",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"2\",\n  \"ipAddress\": \"203.0.113.42\",\n  \"resource\": \"/sensitive-data\",\n  \"queryCount\": 18,\n  \"accessedAt\": \"2024-06-15T10:30:00\",\n  \"failedAttemptsLast10Min\": 0,\n  \"isOffHours\": false\n}"
+            },
+            "url": { "raw": "{{aiUrl}}/ai/analyze", "host": ["{{aiUrl}}"], "path": ["ai","analyze"] }
+          }
+        },
+        {
+          "name": "Analizar acceso HIGH_RISK",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"3\",\n  \"ipAddress\": \"198.51.100.7\",\n  \"resource\": \"/sensitive-data\",\n  \"queryCount\": 45,\n  \"accessedAt\": \"2024-06-15T02:15:00\",\n  \"failedAttemptsLast10Min\": 6,\n  \"isOffHours\": true\n}"
+            },
+            "url": { "raw": "{{aiUrl}}/ai/analyze", "host": ["{{aiUrl}}"], "path": ["ai","analyze"] }
+          }
+        },
+        {
+          "name": "Info del modelo",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{aiUrl}}/ai/info", "host": ["{{aiUrl}}"], "path": ["ai","info"] }
+          }
+        }
+      ]
+    }
+  ]
+}
